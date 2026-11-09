@@ -1,0 +1,79 @@
+{
+  "opening_cutscene": [
+    {
+      "speaker": "Board Member",
+      "profile": "board_member",
+      "text": "There's no doubting what you've achieved on a technical level. These are clearly state-of-the-art. There are just certain design choices that were made for these robots that we don't fully understand. We were hoping that you could shed some light on those.",
+      "duration": 9.5
+    },
+    {
+      "speaker": "William Afton",
+      "profile": "william_afton",
+      "text": "She can dance, she can sing, she's equipped with a built-in helium tank for inflating balloons right at her fingertips. She can take song requests. She can even dispense ice cream.",
+      "duration": 8.0
+    },
+    {
+      "speaker": "Board Member",
+      "profile": "board_member",
+      "text": "With all due respect, those aren't the design choices we were curious about, Mr. Afton.",
+      "duration": 5.5
+    }
+  ],
+  "elizabeth_interludes": {
+    "night_1": "Daddy, why won't you let me play with her?",
+    "night_2": "Daddy, you let the other children go see her. Why won't you let me go?",
+    "night_3": "Daddy just once let me go play with her. She's so pretty and shiny. Didn't you make her just for me?",
+    "night_4": "Daddy, she can make balloons! Have you seen her make balloons? Oh Daddy, let me go to her!",
+    "night_5": "Daddy isn't watching."
+  },
+  "ballora_song": "Why do you hide inside your walls, when there is music in my halls? All I see is an empty room, no more joy, an empty tomb. It's so good to sing all day, to dance, to spin, to fly away.",
+  "night_3_baby_story": [
+    "Did you know that I was on stage once? It wasn't for very long, only one day. What a wonderful day, though.",
+    "I was in a small room with balloons and a few tables. No-one sat at the tables, though, but children would run in and out.",
+    "I always counted the children; I'm not sure why. I was always acutely aware of how many there were in the room with me.",
+    "Two, then three, then two, then three, then four, then two, then none. They usually played together in groups of two or three.",
+    "I was covered in glitter. I smelled like birthday cake. There were two, then three, then five, then four.",
+    "Then there was one. A little girl, standing by herself. I was no longer myself. And I stopped singing.",
+    "My stomach opened, and there was ice cream. I couldn't move, at least, not until she stepped closer.",
+    "There was screaming for a moment, but only for a moment. Then other children rushed in again, but they couldn't hear her over the sounds of their own excitement.",
+    "I still hear her sometimes. Why did that happen?"
+  ],
+  "tv_episodes": {
+    "episode_1": [
+      { "speaker": "Announcer", "text": "As the sun sets, so also does another chapter in the saga of The Immortal and the Restless!" },
+      { "speaker": "Clara", "text": "Vlad, you can't keep doing this! The baby is yours!" },
+      { "speaker": "Vlad", "text": "Clara, I tell you, the baby isn't mine! Count the toes, that's no vampire baby!" },
+      { "speaker": "Clara", "text": "He turns into a bat when he's angry, Vlad! And he only drinks blood-red cranberry juice!" },
+      { "speaker": "Vlad", "text": "Lots of kids do that! Look, I'm a busy undead creature of the night, I don't have time for child support!" }
+    ],
+    "episode_2": [
+      { "speaker": "Announcer", "text": "Welcome back to The Immortal and the Restless!" },
+      { "speaker": "Clara", "text": "Vlad! The baby burned down the nursery and slept in the ceiling rafters!" },
+      { "speaker": "Vlad", "text": "Honestly Clara, boys will be boys! Maybe he's just an enthusiastic acrobat!" },
+      { "speaker": "Clara", "text": "Then I'm taking the car, and I'm taking the diamond ring!" },
+      { "speaker": "Vlad", "text": "Not the station wagon, Clara!" }
+    ],
+    "episode_3": [
+      { "speaker": "Announcer", "text": "Tonight on The Immortal and the Restless: passions ignite!" },
+      { "speaker": "Vlad", "text": "Clara, I couldn't stay away. Your fiery temper warms my cold, undead heart." },
+      { "speaker": "Clara", "text": "Oh Vlad! I set your mansion on fire because I missed you so much!" },
+      { "speaker": "Vlad", "text": "Wait, you burned down my ancestral manor?!" },
+      { "speaker": "Clara", "text": "Kiss me, you fool!" }
+    ],
+    "episode_4": [
+      { "speaker": "Announcer", "text": "The season finale of The Immortal and the Restless, sponsored by Exotic Butters!" },
+      { "speaker": "Vlad", "text": "Clara, I've finally accepted the boy. Look how gracefully he hisses at the sun." },
+      { "speaker": "Clara", "text": "Oh Vlad, we're one big happy dysfunctional nocturnal family at last!" }
+    ]
+  },
+  "springtrap_monologue": [
+    "Father. It's me, Michael.",
+    "I did it. I found it. It was right where you said it would be.",
+    "They were all there. They didn't recognize me at first, but then, they thought I was you.",
+    "And I found her. I put her back together, just like you asked me to. She's free now.",
+    "But something is wrong with me. I should be dead. But I'm not.",
+    "I've been living in shadows. There is only one thing left for me to do now.",
+    "I'm going to come find you.",
+    "I'm going to come find you."
+  ]
+}

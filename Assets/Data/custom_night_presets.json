@@ -1,0 +1,136 @@
+{
+  "animatronics": [
+    {
+      "id": "ballora",
+      "display_name": "Ballora",
+      "description": "Approaches Left or Right Hall disabling CAM 01/02. Listen for her music box volume (4 stages) and close the matching door at Stage 3.",
+      "default_aggression": 0
+    },
+    {
+      "id": "funtime_freddy",
+      "display_name": "Funtime Freddy",
+      "description": "Moves between Left Closet (CAM 03) and Right Closet (CAM 04). 'Bon-Bon, go get him!' = close same door; 'Get ready for a surpriiiise!' = close opposite door.",
+      "default_aggression": 0
+    },
+    {
+      "id": "yenndo",
+      "display_name": "Yenndo",
+      "description": "Appears in office when lowering camera monitor and drains Oxygen rapidly. Flip monitor up immediately to despawn.",
+      "default_aggression": 0
+    },
+    {
+      "id": "funtime_foxy",
+      "display_name": "Funtime Foxy",
+      "description": "Hides behind CAM 07 curtain across 5 stages. Check CAM 07 regularly to slow progress; close Right Door when Stage 5 (Gone).",
+      "default_aggression": 0
+    },
+    {
+      "id": "bonnet",
+      "display_name": "Bonnet",
+      "description": "Giggles and walks right-to-left across office when lowering monitor. Click her nose before she reaches the left edge.",
+      "default_aggression": 0
+    },
+    {
+      "id": "bidybab",
+      "display_name": "Bidybab",
+      "description": "Advances in Center Vent (CAM 05) across 3 stages. Close Center Vent Door (W) when she reaches Stage 3.",
+      "default_aggression": 0
+    },
+    {
+      "id": "electrobab",
+      "display_name": "Electrobab",
+      "description": "Appears in CAM 03 or CAM 04 and drains Power %. Press Controlled Shock (E) to clear.",
+      "default_aggression": 0
+    },
+    {
+      "id": "lolbit",
+      "display_name": "Lolbit",
+      "description": "Appears on the 3 desk monitors. Type L-O-L on keyboard or click L-O-L on wall keypad before all 3 monitors fill.",
+      "default_aggression": 0
+    },
+    {
+      "id": "minireena_1",
+      "display_name": "Minireena",
+      "description": "Appears in CAM 06 and drains Oxygen %. Press Controlled Shock (E) to clear.",
+      "default_aggression": 0
+    },
+    {
+      "id": "minireena_2",
+      "display_name": "Minireena 2",
+      "description": "Climbs onto player view inside the office (up to 3 sprites blocking vision). Cannot be shocked off.",
+      "default_aggression": 0
+    }
+  ],
+  "presets": [
+    {
+      "id": "angry_ballet",
+      "title": "Angry Ballet",
+      "active_ids": ["ballora", "minireena_1", "minireena_2"],
+      "levels": { "easy": 5, "normal": 10, "hard": 15, "vhard": 20 },
+      "cutscene_index": 1
+    },
+    {
+      "id": "freddy_and_co",
+      "title": "Freddy & Co.",
+      "active_ids": ["funtime_freddy", "yenndo", "funtime_foxy", "bonnet"],
+      "levels": { "easy": 5, "normal": 10, "hard": 15, "vhard": 20 },
+      "cutscene_index": 2
+    },
+    {
+      "id": "funtime_frenzy",
+      "title": "Funtime Frenzy",
+      "active_ids": ["funtime_freddy", "yenndo", "funtime_foxy", "lolbit"],
+      "levels": { "easy": 5, "normal": 10, "hard": 15, "vhard": 20 },
+      "cutscene_index": 3
+    },
+    {
+      "id": "dolls_attack",
+      "title": "Dolls, Attack!",
+      "active_ids": ["bonnet", "bidybab", "electrobab", "minireena_1", "minireena_2"],
+      "levels": { "easy": 5, "normal": 10, "hard": 15, "vhard": 20 },
+      "cutscene_index": 4
+    },
+    {
+      "id": "girls_night",
+      "title": "Girls' Night",
+      "active_ids": ["ballora", "funtime_foxy", "bonnet", "bidybab", "minireena_1", "minireena_2"],
+      "levels": { "easy": 5, "normal": 10, "hard": 15, "vhard": 20 },
+      "cutscene_index": 5
+    },
+    {
+      "id": "weirdos",
+      "title": "Weirdos",
+      "active_ids": ["yenndo", "bonnet", "electrobab", "lolbit", "minireena_1"],
+      "levels": { "easy": 5, "normal": 10, "hard": 15, "vhard": 20 },
+      "cutscene_index": 6
+    },
+    {
+      "id": "top_shelf",
+      "title": "Top Shelf",
+      "active_ids": ["ballora", "funtime_freddy", "yenndo", "funtime_foxy", "bonnet"],
+      "levels": { "easy": 5, "normal": 10, "hard": 15, "vhard": 20 },
+      "cutscene_index": 6
+    },
+    {
+      "id": "bottom_shelf",
+      "title": "Bottom Shelf",
+      "active_ids": ["bidybab", "electrobab", "lolbit", "minireena_1", "minireena_2"],
+      "levels": { "easy": 5, "normal": 10, "hard": 15, "vhard": 20 },
+      "cutscene_index": 7
+    },
+    {
+      "id": "cupcake_challenge",
+      "title": "Cupcake Challenge",
+      "active_ids": ["ballora", "funtime_freddy", "funtime_foxy", "bonnet", "electrobab", "lolbit", "minireena_1"],
+      "levels": { "easy": 5, "normal": 10, "hard": 15, "vhard": 20 },
+      "cutscene_index": 7
+    },
+    {
+      "id": "golden_freddy",
+      "title": "Golden Freddy",
+      "active_ids": ["ballora", "funtime_freddy", "yenndo", "funtime_foxy", "bonnet", "bidybab", "electrobab", "lolbit", "minireena_1", "minireena_2"],
+      "levels": { "easy": 5, "normal": 10, "hard": 15, "vhard": 20 },
+      "cutscene_index": 8
+    }
+  ]
+}

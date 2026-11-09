@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "game_title": "Five Nights at Freddy's: Sister Location",
+  "logical_width": 1280,
+  "logical_height": 720,
+  "save_key": "FNAF_SL_SAVE_V1",
+  "night_configs": {
+    "night_1_shock_limit": 3,
+    "night_2_bidybab_pulls": 2,
+    "night_2_ballora_crawl_distance": 100.0,
+    "night_2_breaker_systems_count": 8,
+    "night_2_breaker_charge_rate": 18.0,
+    "night_2_freddy_advance_interval": 4.5,
+    "night_2_debug_hold_seconds": 83.0,
+    "night_2_debug_fast_seconds": 5.0,
+    "night_3_flash_cooldown": 3.0,
+    "night_3_foxy_wait_time": 4.0,
+    "night_4_survival_seconds": 180.0,
+    "night_4_springlock_count": 10,
+    "night_4_unwind_rate": 2.4,
+    "night_4_wind_rate": 28.0,
+    "night_4_wiggle_penalty": 12.0,
+    "night_5_passcode_length": 10,
+    "private_room_fast_duration": 180.0,
+    "private_room_canonical_duration": 540.0,
+    "custom_night_canonical_duration": 360.0,
+    "minigame_time_limit": 60.0
+  },
+  "easter_egg_odds": {
+    "blueprint_denominator": 10000,
+    "lolbit_mask_denominator": 5000,
+    "rare_spawn_denominator": 1000,
+    "popcorn_minireena_denominator": 10000
+  }
+}

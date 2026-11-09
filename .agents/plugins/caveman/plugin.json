@@ -1,0 +1,19 @@
+{
+  "name": "caveman",
+  "displayName": "Caveman",
+  "description": "Caveman: terse replies, every technical fact kept. Ultra-compressed communication mode.",
+  "version": "4.1.0",
+  "author": {
+    "name": "Julius Brussee",
+    "url": "https://github.com/JuliusBrussee"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JuliusBrussee/caveman.git"
+  },
+  "suggestedPrompts": [
+    "Review recent changes with caveman-review",
+    "Draft a commit message with caveman-commit",
+    "Compress documentation into terse format with caveman-compress"
+  ]
+}
