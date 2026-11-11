@@ -304,6 +304,9 @@ namespace FNaFSisterLocation.Gameplay
             _minireena2Count = 0;
             _minireena2Timer = 0f;
 
+            _room3D ??= new PrivateRoomOffice3D();
+            _room3D.SetActive(true);
+
             _audio.ClearDialogue();
             if (!_isCustomNight)
             {
@@ -352,6 +355,9 @@ namespace FNaFSisterLocation.Gameplay
             {
                 UpdateEnnardBossFight(deltaTime);
             }
+
+            _room3D?.Sync(deltaTime, _leftDoorClosed, _rightDoorClosed, _ventDoorClosed,
+                _lolbitMonitors, _fnaf4MonitorsUnlocked, _yenndoActive, _bonnetActive, _bonnetX, _minireena2Count, _oxygen);
         }
 
         private void HandleHotkeys()
@@ -711,37 +717,41 @@ namespace FNaFSisterLocation.Gameplay
             }
         }
 
+        private PrivateRoomOffice3D _room3D;
+
         public void Render(ProceduralCanvas canvas)
         {
-            canvas.FillRect(0, 0, 1280, 720, new Color(0.05f, 0.05f, 0.08f));
+            if (_room3D != null)
+            {
+                _room3D.View.Draw(canvas);
+            }
+            else
+            {
+                canvas.FillRect(0, 0, 1280, 720, new Color(0.05f, 0.05f, 0.08f));
+            }
 
-            // Left Blast Door (A), Center Vent Door (W), Right Blast Door (D)
+            // Left Blast Door (A), Center Vent Door (W), Right Blast Door (D), Wall Keypad & Desk Props
             RenderOfficeDoorsAndDesk(canvas);
 
-            // Yenndo in office
+            // Yenndo in office warning (3D Yenndo is rendered inside the 3D office)
             if (_yenndoActive && !_cameraUp)
             {
-                canvas.DrawAnimatronicHead("yenndo", 640, 330, 1.55f, 0f, 0f, true);
                 canvas.DrawText("YENNDO IN OFFICE! FLIP CAMERA [S] UP IMMEDIATELY!", 340, 140, 20, Color.red, TextAnchor.UpperCenter, 600, 40);
             }
 
             // Bonnet walking across office (click her nose!)
             if (_bonnetActive && !_cameraUp)
             {
-                canvas.FillRect(_bonnetX - 35, 430, 70, 95, new Color(0.95f, 0.38f, 0.65f));
-                if (canvas.Button(_bonnetX - 24, 445, 48, 38, "NOSE", Color.red, Color.white, 11))
+                Vector2 bPos = new Vector2(_bonnetX, 464f);
+                if (_room3D != null)
+                {
+                    _room3D.View.ProjectToLogical(_room3D.GetBonnetNoseWorld(_bonnetX), out bPos);
+                }
+                if (canvas.Button(bPos.x - 28f, bPos.y - 22f, 56, 44, "NOSE", new Color(0.95f, 0.1f, 0.15f, 0.85f), Color.white, 11))
                 {
                     _audio.PlaySfx("honk", 0.9f);
                     _bonnetActive = false;
                 }
-            }
-
-            // Minireena 2 vision blockers inside office
-            for (int m = 0; m < _minireena2Count; m++)
-            {
-                float mx = 360 + m * 260;
-                canvas.FillRect(mx, 220, 95, 290, new Color(0.92f, 0.88f, 0.78f, 0.92f));
-                canvas.FillRect(mx + 15, 175, 65, 55, Color.white);
             }
 
             // Camera Monitor Overlay (CAM 01 .. CAM 07)
@@ -771,68 +781,81 @@ namespace FNaFSisterLocation.Gameplay
 
         private void RenderOfficeDoorsAndDesk(ProceduralCanvas canvas)
         {
-            // Left Doorway (A)
-            canvas.FillRect(60, 110, 180, 460, _leftDoorClosed ? new Color(0.35f, 0.38f, 0.42f) : new Color(0.02f, 0.02f, 0.03f));
-            canvas.StrokeRect(60, 110, 180, 460, 4f, Color.gray);
-            if (_leftDoorClosed) canvas.DrawText("LEFT DOOR\nCLOSED [A]", 75, 310, 18, Color.yellow, TextAnchor.UpperCenter, 150, 60);
-
-            // Right Doorway (D)
-            canvas.FillRect(1040, 110, 180, 460, _rightDoorClosed ? new Color(0.35f, 0.38f, 0.42f) : new Color(0.02f, 0.02f, 0.03f));
-            canvas.StrokeRect(1040, 110, 180, 460, 4f, Color.gray);
-            if (_rightDoorClosed) canvas.DrawText("RIGHT DOOR\nCLOSED [D]", 1055, 310, 18, Color.yellow, TextAnchor.UpperCenter, 150, 60);
-
-            // Center Vent (W)
-            canvas.FillRect(530, 90, 220, 160, _ventDoorClosed ? new Color(0.35f, 0.38f, 0.42f) : new Color(0.02f, 0.02f, 0.03f));
-            canvas.StrokeRect(530, 90, 220, 160, 4f, Color.gray);
-            if (_ventDoorClosed) canvas.DrawText("VENT CLOSED [W]", 545, 155, 16, Color.yellow, TextAnchor.UpperCenter, 190, 35);
-
-            // Wall Keypad on Left (Supports 1-9-8-3 FNaF 4 Easter Egg + L-O-L button)
-            canvas.FillRect(265, 160, 155, 220, new Color(0.2f, 0.22f, 0.26f));
-            canvas.StrokeRect(265, 160, 155, 220, 2f, Color.cyan);
-            canvas.DrawText($"KEYPAD: {_keypadBuffer}", 275, 166, 12, Color.green);
-            for (int d = 1; d <= 9; d++)
+            Vector2 lp = new Vector2(150f, 340f);
+            if (_leftDoorClosed && (_room3D == null || _room3D.View.ProjectToLogical(PrivateRoomOffice3D.LeftDoorLabel, out lp)))
             {
-                int c = (d - 1) % 3;
-                int r = (d - 1) / 3;
-                if (canvas.Button(277 + c * 44, 188 + r * 42, 40, 36, d.ToString(), new Color(0.3f, 0.32f, 0.38f), Color.white, 14))
+                canvas.DrawText("LEFT DOOR\nCLOSED [A]", lp.x - 75f, lp.y - 30f, 16, Color.yellow, TextAnchor.MiddleCenter, 150, 60);
+            }
+
+            Vector2 rp = new Vector2(1130f, 340f);
+            if (_rightDoorClosed && (_room3D == null || _room3D.View.ProjectToLogical(PrivateRoomOffice3D.RightDoorLabel, out rp)))
+            {
+                canvas.DrawText("RIGHT DOOR\nCLOSED [D]", rp.x - 75f, rp.y - 30f, 16, Color.yellow, TextAnchor.MiddleCenter, 150, 60);
+            }
+
+            Vector2 vp = new Vector2(640f, 170f);
+            if (_ventDoorClosed && (_room3D == null || _room3D.View.ProjectToLogical(PrivateRoomOffice3D.VentLabel, out vp)))
+            {
+                canvas.DrawText("VENT CLOSED [W]", vp.x - 95f, vp.y - 18f, 15, Color.yellow, TextAnchor.MiddleCenter, 190, 35);
+            }
+
+            // Wall Keypad on Left (Supports 1-9-8-3 FNaF 4 Easter Egg + L-O-L button) projected on 3D wall
+            float kx = 265f, ky = 160f;
+            bool showKeypad = true;
+            if (_room3D != null)
+            {
+                showKeypad = _room3D.View.ProjectToLogical(PrivateRoomOffice3D.WallKeypadCenter, out Vector2 kp);
+                if (showKeypad)
                 {
-                    OnWallKeypadDigitPressed(d);
+                    kx = Mathf.Clamp(kp.x - 78f, 20f, 1080f);
+                    ky = Mathf.Clamp(kp.y - 110f, 80f, 400f);
                 }
             }
-            if (canvas.Button(277, 320, 128, 44, "L - O - L", new Color(0.85f, 0.45f, 0.1f), Color.white, 16))
+            if (showKeypad)
             {
-                _lolbitMonitors = 0;
-                _audio.PlaySfx("chime", 0.85f);
+                canvas.FillRect(kx, ky, 155, 220, new Color(0.14f, 0.16f, 0.20f, 0.85f));
+                canvas.StrokeRect(kx, ky, 155, 220, 2f, Color.cyan);
+                canvas.DrawText($"KEYPAD: {_keypadBuffer}", kx + 10, ky + 6, 12, Color.green);
+                for (int d = 1; d <= 9; d++)
+                {
+                    int c = (d - 1) % 3;
+                    int r = (d - 1) / 3;
+                    if (canvas.Button(kx + 12 + c * 44, ky + 28 + r * 42, 40, 36, d.ToString(), new Color(0.28f, 0.32f, 0.38f, 0.92f), Color.white, 14))
+                    {
+                        OnWallKeypadDigitPressed(d);
+                    }
+                }
+                if (canvas.Button(kx + 12, ky + 160, 128, 44, "L - O - L", new Color(0.85f, 0.45f, 0.1f, 0.92f), Color.white, 16))
+                {
+                    _lolbitMonitors = 0;
+                    _audio.PlaySfx("chime", 0.85f);
+                }
             }
 
-            // Desk with 3 Small CRT Monitors + Fredbear Plush with Walkie-Talkie
-            canvas.FillRect(320, 450, 640, 140, new Color(0.16f, 0.14f, 0.12f));
+            // 3 Small CRT Monitors on Desk labels
+            string[] fnaf4Rooms = { "FNaF 4 BEDROOM", "FNaF 4 BED", "PLUSHTRAP HALL" };
             for (int m = 0; m < 3; m++)
             {
-                float mx = 360 + m * 145;
-                bool lolOnThis = (_lolbitMonitors > m);
-                Color screenCol = lolOnThis ? new Color(0.9f, 0.45f, 0.1f) :
-                                  (_fnaf4MonitorsUnlocked ? new Color(0.12f, 0.24f, 0.35f) : new Color(0.04f, 0.05f, 0.06f));
-                canvas.FillRect(mx, 345, 130, 100, screenCol);
-                canvas.StrokeRect(mx, 345, 130, 100, 3f, Color.gray);
-
-                if (lolOnThis)
+                if (_room3D != null && _room3D.View.ProjectToLogical(PrivateRoomOffice3D.MonitorCenters[m], out Vector2 mp))
                 {
-                    canvas.DrawText("LOLBIT", mx + 25, 385, 16, Color.white);
-                }
-                else if (_fnaf4MonitorsUnlocked)
-                {
-                    string[] fnaf4Rooms = { "FNaF 4 BEDROOM", "FNaF 4 BED", "PLUSHTRAP HALL" };
-                    canvas.DrawText($"1983 LIVE FEED:\n{fnaf4Rooms[m]}", mx + 8, 372, 12, Color.cyan);
+                    if (_lolbitMonitors > m)
+                    {
+                        canvas.DrawText("LOLBIT", mp.x - 50f, mp.y - 14f, 14, Color.white, TextAnchor.MiddleCenter, 100f, 28f);
+                    }
+                    else if (_fnaf4MonitorsUnlocked)
+                    {
+                        canvas.DrawText($"1983 LIVE:\n{fnaf4Rooms[m]}", mp.x - 60f, mp.y - 18f, 11, Color.cyan, TextAnchor.MiddleCenter, 120f, 36f);
+                    }
                 }
             }
 
-            // Golden Fredbear Plush with walkie-talkie on right of desk (click nose to honk)
-            canvas.FillRect(830, 355, 75, 90, new Color(0.92f, 0.78f, 0.18f));
-            canvas.FillRect(845, 335, 45, 22, new Color(0.45f, 0.18f, 0.68f)); // Purple hat
-            if (canvas.Button(850, 380, 36, 26, "●", new Color(0.1f, 0.1f, 0.1f), Color.white, 14))
+            // Golden Fredbear Plush nose honk button projected on 3D plush
+            if (_room3D != null && _room3D.View.ProjectToLogical(PrivateRoomOffice3D.FredbearNosePos, out Vector2 fbPos))
             {
-                _audio.PlaySfx("honk", 0.9f);
+                if (canvas.Button(fbPos.x - 18f, fbPos.y - 14f, 36, 28, "●", new Color(0.1f, 0.1f, 0.1f, 0.45f), Color.white, 12))
+                {
+                    _audio.PlaySfx("honk", 0.9f);
+                }
             }
         }
 
@@ -961,6 +984,7 @@ namespace FNaFSisterLocation.Gameplay
         public void Exit()
         {
             _audio.SetMusicBoxStage(0);
+            _room3D?.SetActive(false);
         }
     }
 }

@@ -28,6 +28,15 @@ namespace FNaFSisterLocation.Core
         private SceneId _postJumpscareScene = SceneId.TITLE_MENU;
         private Dictionary<string, object> _postJumpscareParams;
 
+        // Jumpscare = lunge at the camera, then a short cut to TV static (as in the original game)
+        private const float JUMPSCARE_DURATION = 1.9f;
+        private const float JUMPSCARE_STATIC_TAIL = 0.6f;
+        private bool _jumpscareStaticCued;
+
+        // Fade in from black after every scene transition
+        private const float FADE_IN_DURATION = 0.55f;
+        private float _fadeInTimer;
+
         private float _babyWhisperTimer = 14f;
         private static readonly string[] BlueprintTitles = new string[]
         {
@@ -62,6 +71,7 @@ namespace FNaFSisterLocation.Core
 
             _audio.SetMusicBoxStage(0);
             EvaluateTransitionEasterEggs(nextId);
+            _fadeInTimer = FADE_IN_DURATION;
 
             if (_scenes.TryGetValue(nextId, out IGameScene nextScene))
             {
@@ -74,7 +84,8 @@ namespace FNaFSisterLocation.Core
         public void TriggerJumpscare(string animatronicId, SceneId returnScene = SceneId.TITLE_MENU, Dictionary<string, object> returnParams = null)
         {
             JumpscareAnimatronicId = animatronicId;
-            JumpscareTimer = 1.45f;
+            JumpscareTimer = JUMPSCARE_DURATION;
+            _jumpscareStaticCued = false;
             _postJumpscareScene = returnScene;
             _postJumpscareParams = returnParams;
             _audio.ClearDialogue();
@@ -111,9 +122,19 @@ namespace FNaFSisterLocation.Core
                 BlueprintOverlayTimer -= deltaTime;
             }
 
+            if (_fadeInTimer > 0f)
+            {
+                _fadeInTimer -= deltaTime;
+            }
+
             if (JumpscareTimer > 0f)
             {
                 JumpscareTimer -= deltaTime;
+                if (!_jumpscareStaticCued && JumpscareTimer <= JUMPSCARE_STATIC_TAIL)
+                {
+                    _jumpscareStaticCued = true;
+                    _audio.PlaySfx("static", 0.75f);
+                }
                 if (JumpscareTimer <= 0f)
                 {
                     TransitionTo(_postJumpscareScene, _postJumpscareParams);
@@ -147,6 +168,12 @@ namespace FNaFSisterLocation.Core
 
             CurrentScene?.Render(canvas);
 
+            if (_fadeInTimer > 0f)
+            {
+                float a = Mathf.SmoothStep(0f, 1f, _fadeInTimer / FADE_IN_DURATION);
+                canvas.FillRect(0, 0, 1280, 720, new Color(0f, 0f, 0f, a));
+            }
+
             if (BlueprintOverlayTimer > 0f)
             {
                 RenderBlueprintOverlay(canvas);
@@ -155,12 +182,40 @@ namespace FNaFSisterLocation.Core
 
         private void RenderJumpscare(ProceduralCanvas canvas)
         {
-            canvas.FillRect(0, 0, 1280, 720, new Color(0.08f, 0.02f, 0.02f));
-            float shakeX = UnityEngine.Random.Range(-28f, 28f);
-            float shakeY = UnityEngine.Random.Range(-24f, 24f);
-            float openAmt = Mathf.PingPong(Time.time * 12f, 1.0f) + 0.35f;
-            canvas.DrawAnimatronicHead(JumpscareAnimatronicId, 640f + shakeX, 360f + shakeY, 2.65f, openAmt, 1.0f);
-            canvas.DrawCrtScanlinesAndStatic(0.75f, 0.4f);
+            // Tail: hard cut to TV static
+            if (JumpscareTimer <= JUMPSCARE_STATIC_TAIL)
+            {
+                canvas.FillRect(0, 0, 1280, 720, Color.black);
+                canvas.DrawFullStatic(Mathf.Clamp01(JumpscareTimer / JUMPSCARE_STATIC_TAIL * 1.5f));
+                canvas.DrawCrtScanlinesAndStatic(0.6f, 0.4f);
+                return;
+            }
+
+            float elapsed = JUMPSCARE_DURATION - JumpscareTimer;
+
+            // Lunge toward the camera: fast ease-out zoom
+            float lunge = 1f - Mathf.Pow(1f - Mathf.Clamp01(elapsed / 0.22f), 3f);
+            float scale = Mathf.Lerp(1.1f, 3.1f, lunge);
+
+            // Violent shake that settles slightly
+            float shakeAmt = Mathf.Lerp(36f, 12f, Mathf.Clamp01(elapsed / 0.9f));
+            float shakeX = UnityEngine.Random.Range(-shakeAmt, shakeAmt);
+            float shakeY = UnityEngine.Random.Range(-shakeAmt, shakeAmt);
+
+            // Faceplates stay shut during the lunge, then snap open and rattle
+            float openAmt = elapsed < 0.14f ? 0f : 0.55f + Mathf.PingPong(Time.time * 14f, 0.5f);
+            float jaw = Mathf.PingPong(Time.time * 11f, 1f);
+
+            canvas.FillRect(0, 0, 1280, 720, new Color(0.05f, 0.01f, 0.01f));
+            canvas.DrawAnimatronicHead(JumpscareAnimatronicId, 640f + shakeX, 390f + shakeY, scale, openAmt, jaw);
+
+            // Impact flash on the first frames
+            if (elapsed < 0.07f)
+            {
+                canvas.FillRect(0, 0, 1280, 720, new Color(1f, 0.95f, 0.95f, 0.8f));
+            }
+
+            canvas.DrawCrtScanlinesAndStatic(0.55f, 0.5f);
         }
 
         private void RenderBlueprintOverlay(ProceduralCanvas canvas)

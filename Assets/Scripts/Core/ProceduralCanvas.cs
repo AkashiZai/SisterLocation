@@ -13,6 +13,8 @@ namespace FNaFSisterLocation.Core
         public const float LOGICAL_HEIGHT = 720f;
 
         private readonly Texture2D _whiteTex;
+        private readonly Texture2D _noiseTex;
+        private readonly Texture2D _vignetteTex;
         private readonly GUIStyle _textStyle;
         private float _scaleX = 1f;
         private float _scaleY = 1f;
@@ -33,6 +35,44 @@ namespace FNaFSisterLocation.Core
             };
             _whiteTex.SetPixels32(cols);
             _whiteTex.Apply();
+
+            // Film grain / TV snow: random black-or-white texels with random alpha (no net brightness shift)
+            const int noiseSize = 256;
+            _noiseTex = new Texture2D(noiseSize, noiseSize, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Repeat
+            };
+            var rng = new System.Random(1987);
+            var noisePx = new Color32[noiseSize * noiseSize];
+            for (int i = 0; i < noisePx.Length; i++)
+            {
+                byte v = rng.Next(2) == 0 ? (byte)0 : (byte)255;
+                noisePx[i] = new Color32(v, v, v, (byte)rng.Next(256));
+            }
+            _noiseTex.SetPixels32(noisePx);
+            _noiseTex.Apply();
+
+            // Smooth radial vignette (black, alpha rises toward the corners)
+            const int vigSize = 128;
+            _vignetteTex = new Texture2D(vigSize, vigSize, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+            var vigPx = new Color32[vigSize * vigSize];
+            for (int y = 0; y < vigSize; y++)
+            {
+                for (int x = 0; x < vigSize; x++)
+                {
+                    float dx = (x + 0.5f) / vigSize * 2f - 1f;
+                    float dy = (y + 0.5f) / vigSize * 2f - 1f;
+                    float a = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.45f, 1.35f, Mathf.Sqrt(dx * dx + dy * dy)));
+                    vigPx[y * vigSize + x] = new Color32(0, 0, 0, (byte)(a * 255f));
+                }
+            }
+            _vignetteTex.SetPixels32(vigPx);
+            _vignetteTex.Apply();
 
             _textStyle = new GUIStyle
             {
@@ -60,6 +100,11 @@ namespace FNaFSisterLocation.Core
             GUI.color = color;
             GUI.DrawTexture(new Rect(x * _scaleX, y * _scaleY, w * _scaleX, h * _scaleY), _whiteTex);
             GUI.color = prev;
+        }
+
+        public void DrawFullscreenTexture(Texture tex)
+        {
+            GUI.DrawTexture(new Rect(0, 0, LOGICAL_WIDTH * _scaleX, LOGICAL_HEIGHT * _scaleY), tex, ScaleMode.StretchToFill, false);
         }
 
         public void StrokeRect(float x, float y, float w, float h, float thickness, Color color)
@@ -223,36 +268,76 @@ namespace FNaFSisterLocation.Core
             FillRect(cx - r * 0.14f, cy - r * 0.04f, r * 0.28f, r * 0.18f, animatronicId == "circus_baby" || animatronicId == "ennard" ? Color.red : Color.black);
         }
 
+        /// <summary>
+        /// Draws the noise texture over a logical rect with a random UV offset (animated grain / TV snow).
+        /// Each noise texel covers ~2 screen pixels.
+        /// </summary>
+        private void DrawNoise(float x, float y, float w, float h, Color tint)
+        {
+            Rect screenRect = new Rect(x * _scaleX, y * _scaleY, w * _scaleX, h * _scaleY);
+            Rect uv = new Rect(UnityEngine.Random.value, UnityEngine.Random.value,
+                screenRect.width / (_noiseTex.width * 2f), screenRect.height / (_noiseTex.height * 2f));
+            Color prev = GUI.color;
+            GUI.color = tint;
+            GUI.DrawTextureWithTexCoords(screenRect, _noiseTex, uv, true);
+            GUI.color = prev;
+        }
+
+        /// <summary>
+        /// Full-screen TV static, as shown after a jumpscare / on a dead camera feed.
+        /// </summary>
+        public void DrawFullStatic(float alpha)
+        {
+            FillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT, new Color(0.32f, 0.33f, 0.35f, alpha));
+            DrawNoise(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT, new Color(1f, 1f, 1f, alpha));
+            DrawNoise(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT, new Color(1f, 1f, 1f, alpha * 0.7f));
+        }
+
         public void DrawCrtScanlinesAndStatic(float staticIntensity, float vignetteDarkness = 0.28f)
         {
-            // Horizontal scanlines
-            Color scanCol = new Color(0f, 0f, 0f, 0.16f);
-            for (int y = 0; y < 720; y += 6)
+            // Horizontal scanlines (subtle, like the in-game monitor feed)
+            Color scanCol = new Color(0f, 0f, 0f, 0.1f);
+            for (int y = 0; y < 720; y += 4)
             {
-                FillRect(0, y, LOGICAL_WIDTH, 2f, scanCol);
+                FillRect(0, y, LOGICAL_WIDTH, 1.5f, scanCol);
             }
 
-            // Static snow bars
+            // Animated film grain over the whole frame
+            DrawNoise(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT, new Color(1f, 1f, 1f, 0.07f + staticIntensity * 0.3f));
+
+            // Slow rolling interference band
+            float bandY = (Time.time * 85f) % (LOGICAL_HEIGHT + 160f) - 160f;
+            FillRect(0f, bandY, LOGICAL_WIDTH, 160f, new Color(0.8f, 0.85f, 0.9f, 0.018f + staticIntensity * 0.04f));
+
+            // Static snow bars (textured, not flat)
             if (staticIntensity > 0.01f)
             {
-                int bars = Mathf.Clamp(Mathf.RoundToInt(staticIntensity * 36f), 2, 45);
+                int bars = Mathf.Clamp(Mathf.RoundToInt(staticIntensity * 24f), 1, 30);
                 for (int i = 0; i < bars; i++)
                 {
                     float by = UnityEngine.Random.Range(0f, LOGICAL_HEIGHT);
-                    float bh = UnityEngine.Random.Range(2f, 14f);
-                    float alpha = UnityEngine.Random.Range(0.05f, 0.35f) * staticIntensity;
-                    FillRect(0f, by, LOGICAL_WIDTH, bh, new Color(0.85f, 0.9f, 0.95f, alpha));
+                    float bh = UnityEngine.Random.Range(2f, 18f);
+                    float alpha = UnityEngine.Random.Range(0.25f, 0.8f) * staticIntensity;
+                    DrawNoise(0f, by, LOGICAL_WIDTH, bh, new Color(1f, 1f, 1f, alpha));
                 }
             }
 
-            // Edge vignette
+            // Buzzing light flicker: occasional dips in brightness driven by Perlin noise
+            float buzz = Mathf.PerlinNoise(Time.time * 6.5f, 0.37f);
+            float dip = buzz > 0.72f ? (buzz - 0.72f) * 2.2f : 0f;
+            if (UnityEngine.Random.value < dip) dip += 0.25f;
+            if (dip > 0.005f)
+            {
+                FillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT, new Color(0f, 0f, 0f, Mathf.Min(dip, 0.6f)));
+            }
+
+            // Smooth radial vignette (dark corners)
             if (vignetteDarkness > 0.01f)
             {
-                Color vCol = new Color(0f, 0f, 0f, vignetteDarkness);
-                FillRect(0, 0, LOGICAL_WIDTH, 32f, vCol);
-                FillRect(0, LOGICAL_HEIGHT - 32f, LOGICAL_WIDTH, 32f, vCol);
-                FillRect(0, 0, 40f, LOGICAL_HEIGHT, vCol);
-                FillRect(LOGICAL_WIDTH - 40f, 0, 40f, LOGICAL_HEIGHT, vCol);
+                Color prev = GUI.color;
+                GUI.color = new Color(1f, 1f, 1f, Mathf.Clamp01(vignetteDarkness * 2.4f));
+                GUI.DrawTexture(new Rect(0, 0, LOGICAL_WIDTH * _scaleX, LOGICAL_HEIGHT * _scaleY), _vignetteTex);
+                GUI.color = prev;
             }
         }
     }

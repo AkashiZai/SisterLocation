@@ -76,6 +76,7 @@ namespace FNaFSisterLocation.Core
             _cachedClips["springlock_wind"] = GenerateSpringlockClickClip();
             _cachedClips["door_slam"] = GenerateDoorSlamClip();
             _cachedClips["jumpscare"] = GenerateJumpscareScreechClip();
+            _cachedClips["static"] = GenerateStaticClip();
             _cachedClips["baby_cry"] = GenerateBabyCryClip();
             _cachedClips["chime"] = GenerateChimeClip();
             _cachedClips["crumbling_dreams"] = GenerateCrumblingDreamsLoop();
@@ -370,20 +371,48 @@ namespace FNaFSisterLocation.Core
 
         private AudioClip GenerateJumpscareScreechClip()
         {
-            int samples = Mathf.RoundToInt(SAMPLE_RATE * 1.35f);
+            // Distorted animatronic scream: detuned saws with vibrato + noise, hard attack, tanh overdrive
+            float dur = 1.3f;
+            int samples = Mathf.RoundToInt(SAMPLE_RATE * dur);
             float[] data = new float[samples];
             System.Random rng = new System.Random(505);
+            float ph1 = 0f, ph2 = 0f, ph3 = 0f;
             for (int i = 0; i < samples; i++)
             {
                 float t = i / (float)SAMPLE_RATE;
-                float fm = Mathf.Sin(2f * Mathf.PI * 32f * t) * 180f;
-                float s1 = Mathf.Sign(Mathf.Sin(2f * Mathf.PI * (420f + fm) * t)) * 0.35f;
-                float s2 = Mathf.Sign(Mathf.Sin(2f * Mathf.PI * (890f - fm * 0.7f) * t)) * 0.35f;
-                float s3 = ((float)rng.NextDouble() * 2f - 1f) * 0.4f;
-                float env = Mathf.Clamp01(1.2f - (i / (float)samples));
-                data[i] = Mathf.Clamp((s1 + s2 + s3) * env, -1f, 1f);
+                float wobble = 1f + Mathf.Sin(2f * Mathf.PI * 7.5f * t) * 0.06f + Mathf.Sin(2f * Mathf.PI * 31f * t) * 0.025f;
+                float pitch = Mathf.Lerp(1.15f, 0.88f, t / dur) * wobble;
+                ph1 = (ph1 + 380f * pitch / SAMPLE_RATE) % 1f;
+                ph2 = (ph2 + 574f * pitch / SAMPLE_RATE) % 1f;
+                ph3 = (ph3 + 1145f * pitch / SAMPLE_RATE) % 1f;
+                float saws = (ph1 * 2f - 1f) * 0.45f + (ph2 * 2f - 1f) * 0.35f + (ph3 * 2f - 1f) * 0.2f;
+                float noise = ((float)rng.NextDouble() * 2f - 1f) * 0.4f;
+                float driven = (float)Math.Tanh((saws + noise) * 3.2f);
+                float rumble = Mathf.Sin(2f * Mathf.PI * 48f * t) * 0.35f * Mathf.Exp(-t * 3f);
+                float env = Mathf.Clamp01(t / 0.004f) * Mathf.Clamp01((dur - t) / 0.15f);
+                data[i] = Mathf.Clamp((driven * 0.8f + rumble) * env, -1f, 1f);
             }
             AudioClip clip = AudioClip.Create("Jumpscare", samples, 1, SAMPLE_RATE, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateStaticClip()
+        {
+            // TV static hiss with random crackles, short fade-out
+            int samples = Mathf.RoundToInt(SAMPLE_RATE * 0.7f);
+            float[] data = new float[samples];
+            System.Random rng = new System.Random(606);
+            float lp = 0f;
+            for (int i = 0; i < samples; i++)
+            {
+                float white = (float)rng.NextDouble() * 2f - 1f;
+                lp += (white - lp) * 0.35f;
+                float crackle = rng.NextDouble() < 0.004 ? ((float)rng.NextDouble() * 2f - 1f) * 0.9f : 0f;
+                float env = Mathf.Clamp01((samples - i) / (SAMPLE_RATE * 0.08f));
+                data[i] = Mathf.Clamp((lp * 0.6f + crackle) * env, -1f, 1f);
+            }
+            AudioClip clip = AudioClip.Create("Static", samples, 1, SAMPLE_RATE, false);
             clip.SetData(data, 0);
             return clip;
         }

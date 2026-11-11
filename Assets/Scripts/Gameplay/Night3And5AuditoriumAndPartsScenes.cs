@@ -24,6 +24,7 @@ namespace FNaFSisterLocation.Gameplay
         private int _mazeStep = 0;
         private float _mazeStepTimer = 0f;
         private float _privateRoomRightHold = 0f;
+        private FuntimeAuditoriumRoom3D _room3D;
 
         public FuntimeAuditoriumScene(SceneGraphRouter router, GameStateService state, ProceduralAudioSynthesizer audio)
         {
@@ -44,6 +45,9 @@ namespace FNaFSisterLocation.Gameplay
             _mazeStep = 0;
             _mazeStepTimer = 0f;
             _privateRoomRightHold = 0f;
+
+            _room3D ??= new FuntimeAuditoriumRoom3D();
+            _room3D.SetActive(true);
 
             if (_night == 3 && _phase == "inbound")
             {
@@ -71,6 +75,8 @@ namespace FNaFSisterLocation.Gameplay
             if (_night == 5 && _phase == "outbound_n5")
             {
                 UpdateNight5AudioMaze(deltaTime);
+                bool mazeMoving = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
+                _room3D?.Sync(deltaTime, _mazeStep * 25f, _flashActiveTimer, false, false, mazeMoving);
                 return;
             }
 
@@ -95,6 +101,7 @@ namespace FNaFSisterLocation.Gameplay
                         return;
                     }
                 }
+                _room3D?.Sync(deltaTime, _progress, _flashActiveTimer, false, false, moving);
                 return;
             }
 
@@ -125,7 +132,10 @@ namespace FNaFSisterLocation.Gameplay
             if (_progress >= 100f)
             {
                 _router.TransitionTo(SceneId.PARTS_AND_SERVICE, new Dictionary<string, object> { { "night", _night } });
+                return;
             }
+
+            _room3D?.Sync(deltaTime, _progress, _flashActiveTimer, _foxyVisibleOnFlash, _router.RareSpawnActive, moving);
         }
 
         private void UpdateNight5AudioMaze(float deltaTime)
@@ -204,20 +214,23 @@ namespace FNaFSisterLocation.Gameplay
         public void Render(ProceduralCanvas canvas)
         {
             bool lit = _flashActiveTimer > 0f;
-            canvas.FillRect(0, 0, 1280, 720, lit ? new Color(0.22f, 0.26f, 0.36f) : new Color(0.01f, 0.01f, 0.02f));
+            if (_room3D != null)
+            {
+                _room3D.View.Draw(canvas);
+            }
+            else
+            {
+                canvas.FillRect(0, 0, 1280, 720, lit ? new Color(0.22f, 0.26f, 0.36f) : new Color(0.01f, 0.01f, 0.02f));
+            }
 
             if (lit)
             {
-                // Checkered floor perspective
-                canvas.FillRect(140, 420, 1000, 260, new Color(0.15f, 0.16f, 0.22f));
                 if (_router.RareSpawnActive)
                 {
-                    canvas.DrawAnimatronicHead("yenndo", 640, 340, 1.55f, 0f, 0f, true);
                     canvas.DrawText("1/1,000 YENNDO SIGHTING!", 520, 120, 18, Color.yellow);
                 }
                 else if (_foxyVisibleOnFlash)
                 {
-                    canvas.DrawAnimatronicHead("funtime_foxy", 640, 340, 1.65f, 0.2f);
                     canvas.DrawText("FUNTIME FOXY DETECTED! STOP MOVING & WAIT 4 SECONDS!", 340, 100, 20, Color.red, TextAnchor.UpperCenter, 600, 50);
                 }
                 else
@@ -241,6 +254,7 @@ namespace FNaFSisterLocation.Gameplay
 
         public void Exit()
         {
+            _room3D?.SetActive(false);
         }
     }
 
@@ -265,6 +279,7 @@ namespace FNaFSisterLocation.Gameplay
         private int _passcodeStep = 0;
         private float _digitSpeakTimer = 0f;
         private bool _cardTaken = false;
+        private PartsAndServiceRoom3D _room3D;
 
         public PartsAndServiceScene(SceneGraphRouter router, ProceduralAudioSynthesizer audio)
         {
@@ -285,6 +300,9 @@ namespace FNaFSisterLocation.Gameplay
             _passcodeStep = 0;
             _digitSpeakTimer = 1.5f;
             _cardTaken = false;
+
+            _room3D ??= new PartsAndServiceRoom3D();
+            _room3D.SetActive(true);
 
             if (_night == 3)
             {
@@ -322,11 +340,20 @@ namespace FNaFSisterLocation.Gameplay
                     _audio.Speak("Circus Baby", $"{digit}...", VoiceProfileId.CircusBaby, 2.0f, true);
                 }
             }
+
+            _room3D?.Sync(deltaTime, _night, _freddyStep, _bonBonHeight, _babyHatchOpen);
         }
 
         public void Render(ProceduralCanvas canvas)
         {
-            canvas.FillRect(0, 0, 1280, 720, new Color(0.03f, 0.04f, 0.06f));
+            if (_room3D != null)
+            {
+                _room3D.View.Draw(canvas);
+            }
+            else
+            {
+                canvas.FillRect(0, 0, 1280, 720, new Color(0.03f, 0.04f, 0.06f));
+            }
 
             if (_night == 3)
             {
@@ -340,18 +367,22 @@ namespace FNaFSisterLocation.Gameplay
             canvas.DrawCrtScanlinesAndStatic(0.12f, 0.45f);
         }
 
+        private Vector2 ProjectOrFallback(Vector3 worldPos, float fallbackX, float fallbackY)
+        {
+            if (_room3D != null && _room3D.View.ProjectToLogical(worldPos, out Vector2 p))
+            {
+                return p;
+            }
+            return new Vector2(fallbackX, fallbackY);
+        }
+
         private void RenderNight3FreddyMaintenance(ProceduralCanvas canvas)
         {
-            float openAmt = _freddyStep >= 4 ? 0.95f : (_freddyStep * 0.12f);
-            canvas.DrawAnimatronicHead("funtime_freddy", 640, 270, 1.65f, openAmt, _freddyStep >= 4 ? 0.55f : 0f);
-
-            // Freddy Torso / Chest Cavity
-            canvas.FillRect(510, 410, 260, 240, new Color(0.9f, 0.9f, 0.94f));
-            if (_freddyStep >= 5)
+            if (_freddyStep == 5)
             {
-                canvas.FillRect(550, 435, 180, 180, new Color(0.14f, 0.15f, 0.18f));
                 Color blink = Mathf.PingPong(Time.time * 5f, 1f) > 0.5f ? Color.red : Color.yellow;
-                if (_freddyStep == 5 && canvas.Button(610, 495, 60, 60, "PWR", blink, Color.black, 14))
+                Vector2 pwrPos = ProjectOrFallback(PartsAndServiceRoom3D.FreddyChestPwrBtn, 640f, 525f);
+                if (canvas.Button(pwrPos.x - 30f, pwrPos.y - 30f, 60, 60, "PWR", blink, Color.black, 14))
                 {
                     _audio.PlaySfx("chime", 0.85f);
                     _freddyStep = 6;
@@ -359,18 +390,18 @@ namespace FNaFSisterLocation.Gameplay
                 }
             }
 
-            // Faceplate & Jaw Maintenance Buttons
+            // Faceplate & Jaw Maintenance Buttons projected on 3D Funtime Freddy
             if (_freddyStep == 0)
             {
-                // Freddy's Right Cheek = Screen Left (x=510, y=310)
-                if (canvas.Button(500, 305, 36, 36, "●", new Color(0.25f, 0.5f, 0.85f), Color.white, 16))
+                Vector2 rc = ProjectOrFallback(PartsAndServiceRoom3D.FreddyRightCheekBtn, 518f, 323f);
+                if (canvas.Button(rc.x - 18f, rc.y - 18f, 36, 36, "●", new Color(0.25f, 0.5f, 0.85f, 0.9f), Color.white, 16))
                 {
                     _audio.PlaySfx("springlock_wind", 0.9f);
                     _freddyStep = 1;
                     _audio.Speak("HandUnit", "Good. Now press the small button under Freddy's left cheek.", VoiceProfileId.HandUnit, 4.5f, true);
                 }
-                // Player's Right Cheek = Screen Right (triggers canonical clarification line!)
-                if (canvas.Button(744, 305, 36, 36, "●", new Color(0.35f, 0.35f, 0.4f), Color.white, 16))
+                Vector2 lc = ProjectOrFallback(PartsAndServiceRoom3D.FreddyLeftCheekBtn, 762f, 323f);
+                if (canvas.Button(lc.x - 18f, lc.y - 18f, 36, 36, "●", new Color(0.35f, 0.35f, 0.4f, 0.85f), Color.white, 16))
                 {
                     if (!_clarifiedRight)
                     {
@@ -381,7 +412,8 @@ namespace FNaFSisterLocation.Gameplay
             }
             else if (_freddyStep == 1)
             {
-                if (canvas.Button(744, 305, 36, 36, "●", new Color(0.25f, 0.5f, 0.85f), Color.white, 16))
+                Vector2 lc = ProjectOrFallback(PartsAndServiceRoom3D.FreddyLeftCheekBtn, 762f, 323f);
+                if (canvas.Button(lc.x - 18f, lc.y - 18f, 36, 36, "●", new Color(0.25f, 0.5f, 0.85f, 0.9f), Color.white, 16))
                 {
                     _audio.PlaySfx("springlock_wind", 0.9f);
                     _freddyStep = 2;
@@ -390,7 +422,8 @@ namespace FNaFSisterLocation.Gameplay
             }
             else if (_freddyStep == 2)
             {
-                if (canvas.Button(535, 225, 34, 34, "●", new Color(0.25f, 0.5f, 0.85f), Color.white, 16))
+                Vector2 re = ProjectOrFallback(PartsAndServiceRoom3D.FreddyRightEyeBtn, 552f, 242f);
+                if (canvas.Button(re.x - 17f, re.y - 17f, 34, 34, "●", new Color(0.25f, 0.5f, 0.85f, 0.9f), Color.white, 16))
                 {
                     _audio.PlaySfx("springlock_wind", 0.9f);
                     _freddyStep = 3;
@@ -399,7 +432,8 @@ namespace FNaFSisterLocation.Gameplay
             }
             else if (_freddyStep == 3)
             {
-                if (canvas.Button(623, 240, 34, 34, "●", new Color(0.25f, 0.5f, 0.85f), Color.white, 16))
+                Vector2 nose = ProjectOrFallback(PartsAndServiceRoom3D.FreddyNoseBtn, 640f, 257f);
+                if (canvas.Button(nose.x - 17f, nose.y - 17f, 34, 34, "●", new Color(0.25f, 0.5f, 0.85f, 0.9f), Color.white, 16))
                 {
                     _audio.PlaySfx("door_slam", 0.8f);
                     _freddyStep = 4;
@@ -408,7 +442,8 @@ namespace FNaFSisterLocation.Gameplay
             }
             else if (_freddyStep == 4)
             {
-                if (canvas.Button(623, 355, 34, 34, "●", new Color(0.25f, 0.5f, 0.85f), Color.white, 16))
+                Vector2 jaw = ProjectOrFallback(PartsAndServiceRoom3D.FreddyJawBtn, 640f, 372f);
+                if (canvas.Button(jaw.x - 17f, jaw.y - 17f, 34, 34, "●", new Color(0.25f, 0.5f, 0.85f, 0.9f), Color.white, 16))
                 {
                     _audio.PlaySfx("door_slam", 0.8f);
                     _freddyStep = 5;
@@ -417,14 +452,11 @@ namespace FNaFSisterLocation.Gameplay
             }
             else if (_freddyStep == 6)
             {
-                // Bon-Bon peeking above left shoulder
-                float bx = 450f;
-                float by = Mathf.Lerp(430f, 300f, _bonBonHeight);
-                canvas.FillRect(bx - 35, by - 40, 70, 80, new Color(0.2f, 0.45f, 0.9f));
-                canvas.FillRect(bx - 20, by + 10, 40, 14, Color.red); // Red Bowtie
                 if (_bonBonHeight >= 0.65f)
                 {
-                    if (canvas.Button(bx - 18, by + 26, 36, 28, "BTN", Color.black, Color.white, 12))
+                    Vector3 bonBowPos = new Vector3(-0.48f, Mathf.Lerp(0.88f, 1.42f, _bonBonHeight) + 0.16f, 1.19f);
+                    Vector2 bp = ProjectOrFallback(bonBowPos, 450f, 330f);
+                    if (canvas.Button(bp.x - 22f, bp.y - 16f, 44, 32, "BTN", Color.black, Color.white, 12))
                     {
                         _audio.PlaySfx("chime", 1.0f);
                         _freddyStep = 7;
@@ -434,7 +466,7 @@ namespace FNaFSisterLocation.Gameplay
             }
             else if (_freddyStep == 7)
             {
-                if (canvas.Button(460, 620, 360, 52, "EXIT TO FUNTIME AUDITORIUM", new Color(0.2f, 0.5f, 0.25f), Color.white, 17))
+                if (canvas.Button(460, 620, 360, 52, "EXIT TO FUNTIME AUDITORIUM", new Color(0.2f, 0.5f, 0.25f, 0.92f), Color.white, 17))
                 {
                     _router.TransitionTo(SceneId.FUNTIME_AUDITORIUM, new Dictionary<string, object> { { "night", 3 }, { "phase", "outbound_n3" } });
                 }
@@ -445,13 +477,11 @@ namespace FNaFSisterLocation.Gameplay
 
         private void RenderNight5BabyPasscode(ProceduralCanvas canvas)
         {
-            canvas.DrawAnimatronicHead("circus_baby", 640, 290, 1.75f, 0.1f, 0f);
-            canvas.FillRect(500, 440, 280, 240, new Color(0.92f, 0.92f, 0.95f));
-
             if (!_babyHatchOpen)
             {
                 canvas.DrawText("CLICK SMALL BUTTON ON BABY'S RIGHT CHEEK (SCREEN LEFT) TO OPEN KEYPAD", 240, 35, 18, Color.yellow, TextAnchor.UpperCenter, 800, 40);
-                if (canvas.Button(495, 325, 38, 38, "●", new Color(0.2f, 0.65f, 0.3f), Color.white, 18))
+                Vector2 cb = ProjectOrFallback(PartsAndServiceRoom3D.BabyCheekBtn, 514f, 344f);
+                if (canvas.Button(cb.x - 19f, cb.y - 19f, 38, 38, "●", new Color(0.2f, 0.65f, 0.3f, 0.9f), Color.white, 18))
                 {
                     _audio.PlaySfx("springlock_wind", 0.9f);
                     _babyHatchOpen = true;
@@ -463,13 +493,16 @@ namespace FNaFSisterLocation.Gameplay
                 canvas.DrawText($"LISTEN TO CIRCUS BABY & ENTER DIGIT ({_passcodeStep + 1}/{_targetPasscode.Count}) — CURRENT SPOKEN DIGIT: [{currentTarget}]", 190, 35, 18, Color.green, TextAnchor.UpperCenter, 900, 40);
 
                 // Cheek 1-9 Keypad Hatch
-                canvas.FillRect(320, 240, 180, 200, new Color(0.18f, 0.2f, 0.24f));
-                canvas.StrokeRect(320, 240, 180, 200, 3f, Color.cyan);
+                Vector2 kp = ProjectOrFallback(PartsAndServiceRoom3D.BabyCheekBtn, 410f, 340f);
+                float kx = Mathf.Clamp(kp.x - 180f, 60f, 960f);
+                float ky = Mathf.Clamp(kp.y - 100f, 120f, 440f);
+                canvas.FillRect(kx, ky, 180, 200, new Color(0.14f, 0.16f, 0.22f, 0.92f));
+                canvas.StrokeRect(kx, ky, 180, 200, 3f, Color.cyan);
                 for (int d = 1; d <= 9; d++)
                 {
                     int col = (d - 1) % 3;
                     int row = (d - 1) / 3;
-                    if (canvas.Button(336 + col * 52, 255 + row * 58, 44, 48, d.ToString(), new Color(0.28f, 0.32f, 0.38f), Color.white, 18))
+                    if (canvas.Button(kx + 16 + col * 52, ky + 15 + row * 58, 44, 48, d.ToString(), new Color(0.28f, 0.32f, 0.38f), Color.white, 18))
                     {
                         if (d == currentTarget)
                         {
@@ -491,7 +524,8 @@ namespace FNaFSisterLocation.Gameplay
             }
             else if (!_cardTaken)
             {
-                if (canvas.Button(460, 490, 110, 52, "TAKE GREEN\nDATA CARD", new Color(0.12f, 0.75f, 0.25f), Color.black, 14))
+                Vector2 cardPos = ProjectOrFallback(PartsAndServiceRoom3D.BabyCardSlot, 515f, 515f);
+                if (canvas.Button(cardPos.x - 55f, cardPos.y - 26f, 110, 52, "TAKE GREEN\nDATA CARD", new Color(0.12f, 0.75f, 0.25f, 0.92f), Color.black, 14))
                 {
                     _audio.PlaySfx("chime", 1.0f);
                     _cardTaken = true;
@@ -500,7 +534,8 @@ namespace FNaFSisterLocation.Gameplay
             }
             else
             {
-                if (canvas.Button(140, 460, 220, 64, "SEND CONVEYOR TO\nSCOOPING ROOM [GREEN]", new Color(0.15f, 0.7f, 0.25f), Color.white, 16))
+                Vector2 convPos = ProjectOrFallback(PartsAndServiceRoom3D.ConveyorBtn, 250f, 490f);
+                if (canvas.Button(convPos.x - 110f, convPos.y - 32f, 220, 64, "SEND CONVEYOR TO\nSCOOPING ROOM [GREEN]", new Color(0.15f, 0.7f, 0.25f, 0.92f), Color.white, 16))
                 {
                     _audio.PlaySfx("door_slam", 0.9f);
                     _router.TransitionTo(SceneId.FUNTIME_AUDITORIUM, new Dictionary<string, object> { { "night", 5 }, { "phase", "outbound_n5" } });
@@ -510,6 +545,7 @@ namespace FNaFSisterLocation.Gameplay
 
         public void Exit()
         {
+            _room3D?.SetActive(false);
         }
     }
 }

@@ -23,6 +23,7 @@ namespace FNaFSisterLocation.Gameplay
         private float _debugHoldTimer = 0f;
         private bool _blueScreenActive = false;
         private int _blueScreenCounter = 1042;
+        private BalloraGalleryRoom3D _room3D;
 
         public BalloraGalleryScene(SceneGraphRouter router, GameStateService state, ProceduralAudioSynthesizer audio)
         {
@@ -41,6 +42,9 @@ namespace FNaFSisterLocation.Gameplay
             _sangLyrics = false;
             _debugHoldTimer = 0f;
             _blueScreenActive = false;
+
+            _room3D ??= new BalloraGalleryRoom3D();
+            _room3D.SetActive(true);
 
             _audio.SetMusicBoxStage(1);
             if (_inbound)
@@ -129,7 +133,10 @@ namespace FNaFSisterLocation.Gameplay
                 {
                     _router.TransitionTo(SceneId.PRIMARY_CONTROL, new Dictionary<string, object> { { "night", 2 }, { "fromBreaker", true } });
                 }
+                return;
             }
+
+            _room3D?.Sync(deltaTime, _distance, _balloraOrbitPhase, _musicStage, moving);
         }
 
         public void Render(ProceduralCanvas canvas)
@@ -145,12 +152,14 @@ namespace FNaFSisterLocation.Gameplay
                 return;
             }
 
-            canvas.FillRect(0, 0, 1280, 720, new Color(0.02f, 0.02f, 0.05f));
-
-            // Ballora gliding silhouette in the dark
-            float bx = 640f + Mathf.Cos(_balloraOrbitPhase) * 380f;
-            float scale = _musicStage == 3 ? 1.55f : (_musicStage == 2 ? 0.95f : 0.55f);
-            canvas.DrawAnimatronicHead("ballora", bx, 340f, scale, 0f);
+            if (_room3D != null)
+            {
+                _room3D.View.Draw(canvas);
+            }
+            else
+            {
+                canvas.FillRect(0, 0, 1280, 720, new Color(0.02f, 0.02f, 0.05f));
+            }
 
             // Music Box Volume Stage Indicator
             Color stageCol = _musicStage == 1 ? Color.green : (_musicStage == 2 ? Color.yellow : Color.red);
@@ -170,6 +179,7 @@ namespace FNaFSisterLocation.Gameplay
         public void Exit()
         {
             _audio.SetMusicBoxStage(0);
+            _room3D?.SetActive(false);
         }
     }
 
@@ -198,6 +208,7 @@ namespace FNaFSisterLocation.Gameplay
         private int _freddyPhase = 0; // 0=hidden, 1=far, 2=mid, 3=close danger
         private float _freddyAdvanceTimer = 0f;
         private float _mascotCooldown = 0f;
+        private BreakerRoom3D _room3D;
 
         public BreakerRoomScene(SceneGraphRouter router, ProceduralAudioSynthesizer audio)
         {
@@ -213,6 +224,9 @@ namespace FNaFSisterLocation.Gameplay
             _freddyPhase = 0;
             _freddyAdvanceTimer = 0f;
             _mascotCooldown = 0f;
+
+            _room3D ??= new BreakerRoom3D();
+            _room3D.SetActive(true);
 
             _audio.Speak("HandUnit", "Use the interface on the left to reboot all eight facility systems to 100%. Use the Mascot Response Audio button to calm Funtime Freddy.", VoiceProfileId.HandUnit, 6.5f, true);
         }
@@ -270,18 +284,21 @@ namespace FNaFSisterLocation.Gameplay
             if (allOnline)
             {
                 _router.TransitionTo(SceneId.BALLORA_GALLERY, new Dictionary<string, object> { { "inbound", false } });
+                return;
             }
+
+            _room3D?.Sync(deltaTime, _freddyPhase);
         }
 
         public void Render(ProceduralCanvas canvas)
         {
-            canvas.FillRect(0, 0, 1280, 720, new Color(0.03f, 0.03f, 0.05f));
-
-            // Right room view (Funtime Freddy advancing across 4 phases)
-            float freddyScale = _freddyPhase == 0 ? 0.4f : (_freddyPhase == 1 ? 0.75f : (_freddyPhase == 2 ? 1.25f : 1.85f));
-            if (_freddyPhase > 0)
+            if (_room3D != null)
             {
-                canvas.DrawAnimatronicHead("funtime_freddy", 900, 360, freddyScale, _freddyPhase >= 3 ? 0.35f : 0f);
+                _room3D.View.Draw(canvas);
+            }
+            else
+            {
+                canvas.FillRect(0, 0, 1280, 720, new Color(0.03f, 0.03f, 0.05f));
             }
 
             // Top-Right Danger Indicator (Green -> Yellow -> Orange -> Flashing Red)
@@ -299,13 +316,19 @@ namespace FNaFSisterLocation.Gameplay
             }
             else
             {
-                if (canvas.Button(720, 540, 360, 56, "PLAY MASCOT AUDIO [SPACE]\n(BON-BON CALMING VOICE)", new Color(0.18f, 0.45f, 0.25f), Color.white, 16))
+                float sx = 720f, sy = 540f;
+                if (_room3D != null && _room3D.View.ProjectToLogical(BreakerRoom3D.SpeakerButtonPos, out Vector2 sp))
+                {
+                    sx = Mathf.Clamp(sp.x - 180f, 80f, 880f);
+                    sy = Mathf.Clamp(sp.y - 28f, 320f, 560f);
+                }
+                if (canvas.Button(sx, sy, 360, 56, "PLAY MASCOT AUDIO [SPACE]\n(BON-BON CALMING VOICE)", new Color(0.18f, 0.45f, 0.25f, 0.92f), Color.white, 16))
                 {
                     PlayBonBonCalmingAudio();
                 }
             }
 
-            if (canvas.Button(60, 640, 340, 48, _monitorUp ? "LOWER MONITOR [S] (CHECK FREDDY)" : "RAISE BREAKER MONITOR [S]", new Color(0.25f, 0.28f, 0.38f), Color.white, 16))
+            if (canvas.Button(60, 640, 340, 48, _monitorUp ? "LOWER MONITOR [S] (CHECK FREDDY)" : "RAISE BREAKER MONITOR [S]", new Color(0.25f, 0.28f, 0.38f, 0.92f), Color.white, 16))
             {
                 _monitorUp = !_monitorUp;
             }
@@ -379,6 +402,7 @@ namespace FNaFSisterLocation.Gameplay
 
         public void Exit()
         {
+            _room3D?.SetActive(false);
         }
     }
 }

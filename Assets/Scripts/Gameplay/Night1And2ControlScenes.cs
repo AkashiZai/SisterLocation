@@ -25,6 +25,7 @@ namespace FNaFSisterLocation.Gameplay
         private bool _westVentUnlocked = false;
         private bool _eastVentUnlocked = false;
         private bool _returningFromBreaker = false;
+        private PrimaryControlRoom3D _room3D;
 
         public PrimaryControlScene(SceneGraphRouter router, GameStateService state, ProceduralAudioSynthesizer audio)
         {
@@ -48,6 +49,9 @@ namespace FNaFSisterLocation.Gameplay
             _northVentUnlocked = false;
             _westVentUnlocked = false;
             _eastVentUnlocked = false;
+
+            _room3D ??= new PrimaryControlRoom3D();
+            _room3D.SetActive(true);
 
             if (_returningFromBreaker)
             {
@@ -79,24 +83,33 @@ namespace FNaFSisterLocation.Gameplay
             {
                 _shockFlashTimer -= deltaTime;
             }
+
+            _room3D?.Sync(deltaTime, _night, _leftLightOn, _rightLightOn, _leftShockCount, _rightShockCount,
+                _router.LolbitMaskOverride, _router.RareSpawnActive, _shockFlashTimer);
         }
 
         public void Render(ProceduralCanvas canvas)
         {
-            canvas.FillRect(0, 0, 1280, 720, new Color(0.05f, 0.06f, 0.09f));
+            if (_room3D != null)
+            {
+                _room3D.View.Draw(canvas);
+            }
+            else
+            {
+                canvas.FillRect(0, 0, 1280, 720, new Color(0.05f, 0.06f, 0.09f));
+            }
 
-            // Left Window (Ballora Gallery) & Right Window (Funtime Auditorium)
+            // Left Window (Ballora Gallery) & Right Window (Funtime Auditorium) status overlays
             RenderLeftWindow(canvas);
             RenderRightWindow(canvas);
 
-            // Center Vent (Circus Gallery) & Overhead Ennard Mask / Fan / Toys
+            // Center Vent (Circus Gallery) & Overhead Ennard Mask / Fan / Toys hitboxes
             RenderCenterProps(canvas);
 
-            // Left Keypad (Ballora)
-            RenderKeypad(canvas, 60, 410, "BALLORA GALLERY", true);
-
-            // Right Keypad (Funtime Foxy)
-            RenderKeypad(canvas, 1020, 410, "FUNTIME AUDITORIUM", false);
+            // Left Keypad (Ballora) & Right Keypad (Funtime Foxy) projected onto 3D keypads
+            RenderKeypad3D(canvas, "BALLORA GALLERY", true, PrimaryControlRoom3D.LeftLightButton, PrimaryControlRoom3D.LeftShockButton, 60f);
+            RenderKeypad3D(canvas, "FUNTIME AUDITORIUM", false, PrimaryControlRoom3D.RightLightButton, PrimaryControlRoom3D.RightShockButton, 1020f);
+            RenderPanHints(canvas);
 
             // Navigation Vent Buttons
             if (_returningFromBreaker)
@@ -112,7 +125,13 @@ namespace FNaFSisterLocation.Gameplay
             {
                 if (_northVentUnlocked)
                 {
-                    if (canvas.Button(500, 320, 280, 52, "ENTER NORTH VENT\n(CIRCUS CONTROL)", new Color(0.18f, 0.35f, 0.55f), Color.cyan, 16))
+                    float vx = 500f, vy = 320f;
+                    if (_room3D != null && _room3D.View.ProjectToLogical(new Vector3(0f, 0.57f, 2.9f), out Vector2 vp))
+                    {
+                        vx = Mathf.Clamp(vp.x - 140f, 40f, 960f);
+                        vy = Mathf.Clamp(vp.y - 26f, 80f, 560f);
+                    }
+                    if (canvas.Button(vx, vy, 280, 52, "ENTER NORTH VENT\n(CIRCUS CONTROL)", new Color(0.18f, 0.35f, 0.55f, 0.9f), Color.cyan, 16))
                     {
                         _router.TransitionTo(SceneId.VENT_CRAWL, new Dictionary<string, object>
                         {
@@ -125,7 +144,7 @@ namespace FNaFSisterLocation.Gameplay
 
                 if (_westVentUnlocked)
                 {
-                    if (canvas.Button(120, 620, 300, 50, "ENTER WEST VENT (BALLORA GALLERY)", new Color(0.35f, 0.15f, 0.45f), Color.white, 15))
+                    if (canvas.Button(120, 620, 300, 50, "ENTER WEST VENT (BALLORA GALLERY)", new Color(0.35f, 0.15f, 0.45f, 0.9f), Color.white, 15))
                     {
                         _router.TransitionTo(SceneId.BALLORA_GALLERY, new Dictionary<string, object> { { "night", _night }, { "inbound", true } });
                     }
@@ -133,7 +152,7 @@ namespace FNaFSisterLocation.Gameplay
 
                 if (_eastVentUnlocked)
                 {
-                    if (canvas.Button(860, 620, 320, 50, "ENTER EAST VENT (FUNTIME AUDITORIUM)", new Color(0.45f, 0.18f, 0.28f), Color.white, 15))
+                    if (canvas.Button(860, 620, 320, 50, "ENTER EAST VENT (FUNTIME AUDITORIUM)", new Color(0.45f, 0.18f, 0.28f, 0.9f), Color.white, 15))
                     {
                         _router.TransitionTo(SceneId.FUNTIME_AUDITORIUM, new Dictionary<string, object> { { "night", _night }, { "phase", "inbound" } });
                     }
@@ -142,7 +161,7 @@ namespace FNaFSisterLocation.Gameplay
 
             if (_shockFlashTimer > 0f)
             {
-                canvas.FillRect(0, 0, 1280, 720, new Color(0.65f, 0.85f, 1.0f, _shockFlashTimer));
+                canvas.FillRect(0, 0, 1280, 720, new Color(0.65f, 0.85f, 1.0f, _shockFlashTimer * 0.65f));
             }
 
             canvas.DrawCrtScanlinesAndStatic(0.12f, 0.35f);
@@ -150,127 +169,141 @@ namespace FNaFSisterLocation.Gameplay
 
         private void RenderLeftWindow(ProceduralCanvas canvas)
         {
-            Color glass = _leftLightOn ? new Color(0.18f, 0.22f, 0.36f) : new Color(0.02f, 0.02f, 0.04f);
-            canvas.FillRect(80, 110, 360, 260, glass);
-            canvas.StrokeRect(80, 110, 360, 260, 5f, new Color(0.25f, 0.28f, 0.35f));
-
             if (!_leftLightOn) return;
+
+            Vector2 pos = new Vector2(260f, 340f);
+            if (_room3D != null && !_room3D.View.ProjectToLogical(PrimaryControlRoom3D.LeftWindowLabel, out pos))
+            {
+                return;
+            }
+
+            float lx = Mathf.Clamp(pos.x - 160f, 20f, 940f);
+            float ly = Mathf.Clamp(pos.y, 60f, 600f);
 
             if (_night == 1 || _night == 2)
             {
                 if (_leftShockCount >= 1)
                 {
-                    canvas.DrawAnimatronicHead("ballora", 260, 240, 0.85f, 0f);
-                    canvas.DrawText("BALLORA & MINIREENAS ONSTAGE", 110, 340, 14, Color.cyan);
+                    canvas.DrawText("BALLORA & MINIREENAS ONSTAGE", lx, ly, 14, Color.cyan, TextAnchor.MiddleCenter, 320f, 30f);
                 }
                 else
                 {
-                    canvas.DrawText("STAGE EMPTY", 200, 230, 18, Color.red);
+                    canvas.DrawText("STAGE EMPTY", lx, ly, 18, Color.red, TextAnchor.MiddleCenter, 320f, 30f);
                 }
             }
             else if (_night == 3)
             {
-                // Minireenas holding dismantled Ballora pieces
-                canvas.FillRect(200, 220, 24, 70, new Color(0.85f, 0.8f, 0.7f));
-                canvas.FillRect(290, 220, 24, 70, new Color(0.85f, 0.8f, 0.7f));
-                canvas.DrawAnimatronicHead("ballora", 255, 195, 0.55f, 0.65f);
-                canvas.DrawText("MINIREENAS HOLDING DISMANTLED BALLORA", 95, 340, 13, Color.yellow);
+                canvas.DrawText("MINIREENAS HOLDING DISMANTLED BALLORA", lx, ly, 13, Color.yellow, TextAnchor.MiddleCenter, 320f, 30f);
             }
             else if (_night == 5)
             {
-                // Hanged Technician Silhouette
-                canvas.FillRect(256, 110, 6, 85, new Color(0.35f, 0.3f, 0.25f));
-                canvas.FillRect(236, 195, 46, 130, new Color(0.05f, 0.05f, 0.07f));
-                canvas.DrawText("SILHOUETTE: HANGED TECHNICIAN #1", 115, 340, 14, Color.red);
+                canvas.DrawText("SILHOUETTE: HANGED TECHNICIAN #1", lx, ly, 14, Color.red, TextAnchor.MiddleCenter, 320f, 30f);
             }
         }
 
         private void RenderRightWindow(ProceduralCanvas canvas)
         {
-            Color glass = _rightLightOn ? new Color(0.24f, 0.18f, 0.32f) : new Color(0.02f, 0.02f, 0.04f);
-            canvas.FillRect(840, 110, 360, 260, glass);
-            canvas.StrokeRect(840, 110, 360, 260, 5f, new Color(0.25f, 0.28f, 0.35f));
-
             if (!_rightLightOn) return;
+
+            Vector2 pos = new Vector2(1020f, 340f);
+            if (_room3D != null && !_room3D.View.ProjectToLogical(PrimaryControlRoom3D.RightWindowLabel, out pos))
+            {
+                return;
+            }
+
+            float lx = Mathf.Clamp(pos.x - 160f, 20f, 940f);
+            float ly = Mathf.Clamp(pos.y, 60f, 600f);
 
             if (_night == 1)
             {
                 if (_rightShockCount >= 2)
                 {
-                    canvas.DrawAnimatronicHead("funtime_foxy", 1020, 240, 0.85f, 0f);
-                    canvas.DrawText("FUNTIME FOXY ONSTAGE", 930, 340, 14, Color.magenta);
+                    canvas.DrawText("FUNTIME FOXY ONSTAGE", lx, ly, 14, Color.magenta, TextAnchor.MiddleCenter, 320f, 30f);
                 }
                 else
                 {
-                    canvas.DrawText("STAGE EMPTY", 960, 230, 18, Color.red);
+                    canvas.DrawText("STAGE EMPTY", lx, ly, 18, Color.red, TextAnchor.MiddleCenter, 320f, 30f);
                 }
             }
             else if (_night == 2)
             {
                 if (_rightShockCount >= 1)
                 {
-                    canvas.DrawAnimatronicHead("funtime_foxy", 1020, 240, 0.85f, 0f);
+                    canvas.DrawText("FUNTIME FOXY ONSTAGE", lx, ly, 14, Color.magenta, TextAnchor.MiddleCenter, 320f, 30f);
                 }
                 else
                 {
-                    canvas.DrawText("STAGE EMPTY", 960, 230, 18, Color.red);
+                    canvas.DrawText("STAGE EMPTY", lx, ly, 18, Color.red, TextAnchor.MiddleCenter, 320f, 30f);
                 }
             }
             else if (_night == 3)
             {
-                canvas.DrawText("STAGE EMPTY — FOXY MISSING", 900, 230, 16, Color.red);
+                canvas.DrawText("STAGE EMPTY — FOXY MISSING", lx, ly, 16, Color.red, TextAnchor.MiddleCenter, 320f, 30f);
             }
             else if (_night == 5)
             {
-                // Hanged Technician #2 Silhouette
-                canvas.FillRect(1016, 110, 6, 85, new Color(0.35f, 0.3f, 0.25f));
-                canvas.FillRect(996, 195, 46, 130, new Color(0.05f, 0.05f, 0.07f));
-                canvas.DrawText("SILHOUETTE: HANGED TECHNICIAN #2", 875, 340, 14, Color.red);
+                canvas.DrawText("SILHOUETTE: HANGED TECHNICIAN #2", lx, ly, 14, Color.red, TextAnchor.MiddleCenter, 320f, 30f);
             }
         }
 
         private void RenderCenterProps(ProceduralCanvas canvas)
         {
             // Ennard Mask (or 1/5,000 Lolbit Head Easter Egg) above the center vent
-            string maskId = _router.LolbitMaskOverride ? "lolbit" : "ennard";
-            canvas.DrawAnimatronicHead(maskId, 640, 145, 0.72f, 0f);
-            if (_router.LolbitMaskOverride)
+            if (_room3D != null && _room3D.View.ProjectToLogical(PrimaryControlRoom3D.EnnardNose, out Vector2 nosePos))
             {
-                canvas.DrawText("1/5,000 LOLBIT MASK!", 565, 50, 14, new Color(1f, 0.55f, 0.1f));
-            }
+                if (_router.LolbitMaskOverride)
+                {
+                    canvas.DrawText("1/5,000 LOLBIT MASK!", nosePos.x - 100f, nosePos.y - 75f, 14, new Color(1f, 0.55f, 0.1f), TextAnchor.MiddleCenter, 200f, 26f);
+                }
 
-            // Clickable Ennard nose above fan -> plays Baby1.ogg cry
-            if (canvas.Button(622, 132, 36, 26, "", new Color(1, 0, 0, 0.01f), Color.clear))
-            {
-                _audio.PlaySfx("baby_cry", 0.9f);
+                // Clickable Ennard nose above fan -> plays Baby1.ogg cry
+                if (canvas.Button(nosePos.x - 22f, nosePos.y - 18f, 44f, 36f, "", new Color(1f, 0f, 0f, 0.01f), Color.clear))
+                {
+                    _audio.PlaySfx("baby_cry", 0.9f);
+                }
             }
 
             // 1/1,000 Spinning Minireena in Primary Control
-            if (_router.RareSpawnActive)
+            if (_router.RareSpawnActive && _room3D != null &&
+                _room3D.View.ProjectToLogical(new Vector3(-0.9f, 0.85f, 1.9f), out Vector2 miniPos))
             {
-                float spinX = 480f + Mathf.Sin(Time.time * 8f) * 18f;
-                canvas.FillRect(spinX, 460, 26, 65, new Color(0.9f, 0.85f, 0.75f));
-                canvas.DrawText("1/1,000 SPINNING MINIREENA", 440, 535, 13, Color.yellow);
+                canvas.DrawText("1/1,000 SPINNING MINIREENA", miniPos.x - 130f, miniPos.y, 13, Color.yellow, TextAnchor.MiddleCenter, 260f, 26f);
             }
 
-            // Three small Baby Heads ("See/Hear/Speak No Evil") & Fortune Teller toy on desk
-            for (int h = 0; h < 3; h++)
+            // Three small Baby Heads ("See/Hear/Speak No Evil") on desk
+            for (int h = 0; h < PrimaryControlRoom3D.BabyHeads.Length; h++)
             {
-                if (canvas.Button(545 + h * 68, 430, 52, 52, $"BABY\n#{h + 1}", new Color(0.38f, 0.25f, 0.22f), Color.white, 12))
+                if (_room3D != null && _room3D.View.ProjectToLogical(PrimaryControlRoom3D.BabyHeads[h], out Vector2 headPos))
                 {
-                    _audio.PlaySfx("chime", 0.75f);
+                    if (canvas.Button(headPos.x - 28f, headPos.y - 28f, 56f, 56f, $"BABY\n#{h + 1}", new Color(0.18f, 0.12f, 0.12f, 0.55f), new Color(1f, 1f, 1f, 0.85f), 11))
+                    {
+                        _audio.PlaySfx("chime", 0.75f);
+                    }
                 }
             }
         }
 
-        private void RenderKeypad(ProceduralCanvas canvas, float x, float y, string title, bool isLeft)
+        private void RenderKeypad3D(ProceduralCanvas canvas, string title, bool isLeft, Vector3 lightWorld, Vector3 shockWorld, float fallbackX)
         {
-            canvas.FillRect(x, y, 200, 190, new Color(0.16f, 0.18f, 0.22f));
-            canvas.StrokeRect(x, y, 200, 190, 3f, new Color(0.35f, 0.4f, 0.48f));
-            canvas.DrawText(title, x + 10, y + 10, 14, Color.white, TextAnchor.UpperCenter, 180, 26);
+            Vector3 centerWorld = (lightWorld + shockWorld) * 0.5f;
+            float x = fallbackX;
+            float y = 410f;
+            if (_room3D != null)
+            {
+                if (!_room3D.View.ProjectToLogical(centerWorld, out Vector2 projected))
+                {
+                    return;
+                }
+                x = Mathf.Clamp(projected.x - 95f, 16f, 1074f);
+                y = Mathf.Clamp(projected.y - 88f, 300f, 510f);
+            }
+
+            canvas.FillRect(x, y, 190, 176, new Color(0.10f, 0.12f, 0.16f, 0.82f));
+            canvas.StrokeRect(x, y, 190, 176, 2f, new Color(0.35f, 0.42f, 0.52f, 0.9f));
+            canvas.DrawText(title, x + 8, y + 8, 13, Color.white, TextAnchor.UpperCenter, 174, 24);
 
             bool lightActive = isLeft ? _leftLightOn : _rightLightOn;
-            if (canvas.Button(x + 25, y + 45, 150, 54, lightActive ? "LIGHT: ON" : "LIGHT [BLUE]", new Color(0.12f, 0.38f, 0.85f), Color.white, 16))
+            if (canvas.Button(x + 20, y + 40, 150, 50, lightActive ? "LIGHT: ON" : "LIGHT [BLUE]", new Color(0.12f, 0.38f, 0.85f, 0.92f), Color.white, 15))
             {
                 if (isLeft)
                 {
@@ -284,7 +317,7 @@ namespace FNaFSisterLocation.Gameplay
                 }
             }
 
-            if (canvas.Button(x + 25, y + 115, 150, 54, "SHOCK [RED]", new Color(0.85f, 0.15f, 0.15f), Color.white, 16))
+            if (canvas.Button(x + 20, y + 104, 150, 50, "SHOCK [RED]", new Color(0.85f, 0.15f, 0.15f, 0.92f), Color.white, 15))
             {
                 _audio.PlaySfx("shock", 0.95f);
                 _shockFlashTimer = 0.55f;
@@ -301,6 +334,21 @@ namespace FNaFSisterLocation.Gameplay
                     _rightShockCount++;
                     OnRightShockTriggered();
                 }
+            }
+        }
+
+        private void RenderPanHints(ProceduralCanvas canvas)
+        {
+            if (_room3D == null) return;
+            float yaw = _room3D.View.Yaw;
+            float maxYaw = _room3D.View.MaxYaw;
+            if (yaw > -maxYaw + 4f)
+            {
+                canvas.DrawText("◄ MOUSE LEFT\nBALLORA GALLERY", 14, 320, 13, new Color(0.65f, 0.8f, 1f, 0.65f), TextAnchor.MiddleLeft, 150, 44);
+            }
+            if (yaw < maxYaw - 4f)
+            {
+                canvas.DrawText("MOUSE RIGHT ►\nFUNTIME AUDITORIUM", 1116, 320, 13, new Color(1f, 0.7f, 0.9f, 0.65f), TextAnchor.MiddleRight, 150, 44);
             }
         }
 
@@ -391,6 +439,7 @@ namespace FNaFSisterLocation.Gameplay
 
         public void Exit()
         {
+            _room3D?.SetActive(false);
         }
     }
 
@@ -408,6 +457,7 @@ namespace FNaFSisterLocation.Gameplay
         private float _shockFlash = 0f;
         private bool _night1Complete = false;
         private bool _powerOutage = false;
+        private CircusControlRoom3D _room3D;
 
         public CircusControlScene(SceneGraphRouter router, GameStateService state, ProceduralAudioSynthesizer audio)
         {
@@ -424,6 +474,9 @@ namespace FNaFSisterLocation.Gameplay
             _shockFlash = 0f;
             _night1Complete = false;
             _powerOutage = false;
+
+            _room3D ??= new CircusControlRoom3D();
+            _room3D.SetActive(true);
 
             if (_night == 1)
             {
@@ -446,55 +499,85 @@ namespace FNaFSisterLocation.Gameplay
             if (_night1Complete && Input.GetKeyDown(KeyCode.S))
             {
                 CompleteNight1();
+                return;
             }
+
+            _room3D?.Sync(deltaTime, _lightOn, _powerOutage, _router.RareSpawnActive, _shockFlash);
         }
 
         public void Render(ProceduralCanvas canvas)
         {
-            Color bg = _powerOutage ? new Color(0.01f, 0.01f, 0.02f) : new Color(0.06f, 0.07f, 0.11f);
-            canvas.FillRect(0, 0, 1280, 720, bg);
-
-            // Large observation window into Circus Gallery (Baby never appears behind glass)
-            Color winCol = _lightOn && !_powerOutage ? new Color(0.22f, 0.25f, 0.35f) : new Color(0.02f, 0.02f, 0.04f);
-            canvas.FillRect(240, 80, 800, 280, winCol);
-            canvas.StrokeRect(240, 80, 800, 280, 6f, new Color(0.28f, 0.3f, 0.38f));
+            if (_room3D != null)
+            {
+                _room3D.View.Draw(canvas);
+            }
+            else
+            {
+                Color bg = _powerOutage ? new Color(0.01f, 0.01f, 0.02f) : new Color(0.06f, 0.07f, 0.11f);
+                canvas.FillRect(0, 0, 1280, 720, bg);
+            }
 
             if (_lightOn && !_powerOutage)
             {
-                canvas.DrawText("CIRCUS GALLERY STAGE (CIRCUS BABY NOT VISIBLE)", 410, 210, 18, Color.yellow);
+                Vector2 winPos = new Vector2(640f, 210f);
+                if (_room3D == null || _room3D.View.ProjectToLogical(CircusControlRoom3D.WindowLabelPos, out winPos))
+                {
+                    canvas.DrawText("CIRCUS GALLERY STAGE (CIRCUS BABY NOT VISIBLE)", winPos.x - 260f, winPos.y - 15f, 17, Color.yellow, TextAnchor.MiddleCenter, 520f, 30f);
+                }
             }
             if (_router.RareSpawnActive)
             {
-                canvas.FillRect(620, 320, 14, 14, Color.yellow);
-                canvas.FillRect(650, 320, 14, 14, Color.yellow);
-                canvas.DrawText("1/1,000 BIDYBAB AT WINDOW", 530, 290, 14, Color.yellow);
-            }
-
-            // Control Desk with 4 colored eye-buttons (Blue, Green, Pink/Purple, Yellow)
-            canvas.FillRect(260, 400, 520, 180, new Color(0.14f, 0.15f, 0.2f));
-            Color[] eyeCols = { Color.cyan, Color.green, Color.magenta, Color.yellow };
-            for (int i = 0; i < 4; i++)
-            {
-                if (canvas.Button(300 + i * 115, 440, 85, 85, "◉", eyeCols[i], Color.black, 28))
+                Vector2 bidyPos = new Vector2(640f, 290f);
+                if (_room3D == null || _room3D.View.ProjectToLogical(new Vector3(0f, 1.45f, 3.18f), out bidyPos))
                 {
-                    _audio.PlaySfx("chime", 0.7f);
+                    canvas.DrawText("1/1,000 BIDYBAB AT WINDOW", bidyPos.x - 160f, bidyPos.y - 45f, 14, Color.yellow, TextAnchor.MiddleCenter, 320f, 28f);
                 }
             }
 
-            // Right Keypad
-            canvas.FillRect(850, 390, 210, 190, new Color(0.16f, 0.18f, 0.22f));
-            if (canvas.Button(875, 415, 160, 55, "LIGHT [BLUE]", new Color(0.12f, 0.38f, 0.85f), Color.white, 16))
+            // Control Desk with 4 colored eye-buttons (Blue, Green, Pink/Purple, Yellow) projected on the 3D desk
+            Color[] eyeCols = { Color.cyan, Color.green, Color.magenta, Color.yellow };
+            for (int i = 0; i < 4; i++)
             {
-                _lightOn = !_lightOn;
+                Vector2 btnPos = new Vector2(342f + i * 115f, 482f);
+                if (_room3D == null || _room3D.View.ProjectToLogical(CircusControlRoom3D.EyeButtons[i], out btnPos))
+                {
+                    Color c = eyeCols[i];
+                    if (canvas.Button(btnPos.x - 36f, btnPos.y - 36f, 72f, 72f, "◉", new Color(c.r, c.g, c.b, 0.45f), Color.white, 24))
+                    {
+                        _audio.PlaySfx("chime", 0.7f);
+                    }
+                }
             }
-            if (canvas.Button(875, 490, 160, 55, $"SHOCK ({_shockCount}/3)", new Color(0.85f, 0.15f, 0.15f), Color.white, 16))
+
+            // Right Keypad projected on the 3D right stand
+            float kx = 850f, ky = 390f;
+            bool showKeypad = true;
+            if (_room3D != null)
             {
-                HandleShockPressed();
+                showKeypad = _room3D.View.ProjectToLogical(CircusControlRoom3D.KeypadCenter, out Vector2 kp);
+                if (showKeypad)
+                {
+                    kx = Mathf.Clamp(kp.x - 95f, 20f, 1060f);
+                    ky = Mathf.Clamp(kp.y - 88f, 280f, 510f);
+                }
+            }
+            if (showKeypad)
+            {
+                canvas.FillRect(kx, ky, 195, 176, new Color(0.10f, 0.12f, 0.16f, 0.82f));
+                canvas.StrokeRect(kx, ky, 195, 176, 2f, new Color(0.35f, 0.42f, 0.52f, 0.9f));
+                if (canvas.Button(kx + 18, ky + 20, 160, 55, _lightOn ? "LIGHT: ON" : "LIGHT [BLUE]", new Color(0.12f, 0.38f, 0.85f, 0.92f), Color.white, 16))
+                {
+                    _lightOn = !_lightOn;
+                }
+                if (canvas.Button(kx + 18, ky + 92, 160, 55, $"SHOCK ({_shockCount}/3)", new Color(0.85f, 0.15f, 0.15f, 0.92f), Color.white, 16))
+                {
+                    HandleShockPressed();
+                }
             }
 
             if (_night1Complete)
             {
-                if (canvas.Button(460, 610, 360, 56, "CRAWL BACK [S] -> FINISH NIGHT 1", new Color(0.15f, 0.5f, 0.25f), Color.white, 18))
+                if (canvas.Button(460, 610, 360, 56, "CRAWL BACK [S] -> FINISH NIGHT 1", new Color(0.15f, 0.5f, 0.25f, 0.92f), Color.white, 18))
                 {
                     CompleteNight1();
                 }
@@ -502,7 +585,13 @@ namespace FNaFSisterLocation.Gameplay
 
             if (_powerOutage || _night == 3)
             {
-                if (canvas.Button(460, 610, 360, 56, "HIDE UNDER THE DESK", new Color(0.55f, 0.22f, 0.12f), Color.yellow, 18))
+                float ux = 460f, uy = 600f;
+                if (_room3D != null && _room3D.View.ProjectToLogical(CircusControlRoom3D.UnderDeskPos, out Vector2 up))
+                {
+                    ux = Mathf.Clamp(up.x - 180f, 60f, 860f);
+                    uy = Mathf.Clamp(up.y - 28f, 420f, 610f);
+                }
+                if (canvas.Button(ux, uy, 360, 56, "HIDE UNDER THE DESK", new Color(0.55f, 0.22f, 0.12f, 0.92f), Color.yellow, 18))
                 {
                     _router.TransitionTo(SceneId.UNDER_DESK, new Dictionary<string, object> { { "night", _night } });
                 }
@@ -510,7 +599,7 @@ namespace FNaFSisterLocation.Gameplay
 
             if (_shockFlash > 0f)
             {
-                canvas.FillRect(0, 0, 1280, 720, new Color(0.7f, 0.9f, 1.0f, _shockFlash));
+                canvas.FillRect(0, 0, 1280, 720, new Color(0.7f, 0.9f, 1.0f, _shockFlash * 0.65f));
             }
 
             canvas.DrawCrtScanlinesAndStatic(0.12f, 0.38f);
@@ -558,6 +647,7 @@ namespace FNaFSisterLocation.Gameplay
 
         public void Exit()
         {
+            _room3D?.SetActive(false);
         }
     }
 
